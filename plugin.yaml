@@ -1,0 +1,7 @@
+name: nox-plugin-reachability
+version: 0.1.0
+track: core-analysis
+description: Import-based reachability analysis for vulnerability findings
+tools:
+  - name: analyze_reachability
+    description: Classify VULN findings as reachable, unreachable, or undetermined based on import analysis
