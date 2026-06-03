@@ -26,10 +26,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Install Cosign
-        # Pinned to v3.10.x — cosign v4 changed bundle format and
-        # broke goreleaser's --output-signature flag. Move to v4
-        # once goreleaser ships compatible signing config.
-        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+        # cosign v4: signs config uses the new --bundle (.sigstore.json)
+        # format; --output-signature/--output-certificate were removed.
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Install Syft (for SBOM)
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
