@@ -65,14 +65,13 @@ checksum:
 # verifiers in the wild.
 signs:
   - cmd: cosign
+    signature: "${artifact}.sigstore.json"
     artifacts: checksum
     output: true
     args:
       - sign-blob
       - "--yes"
-      - "--new-bundle-format"
-      - "--bundle=${signature}.bundle"
-      - "--output-signature=${signature}"
+      - "--bundle=${signature}"
       - "${artifact}"
 
 sboms:
