@@ -7,47 +7,6 @@ import (
 	"testing"
 )
 
-func TestExtractGoImports(t *testing.T) {
-	dir := t.TempDir()
-	goFile := filepath.Join(dir, "main.go")
-	if err := os.WriteFile(goFile, []byte(`package main
-
-import (
-	"fmt"
-	"net/http"
-
-	"github.com/gorilla/mux"
-	"golang.org/x/crypto/bcrypt"
-)
-
-func main() { fmt.Println("hello") }
-`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	imports, err := extractGoImports(goFile)
-	if err != nil {
-		t.Fatalf("extractGoImports: %v", err)
-	}
-
-	want := map[string]bool{
-		"fmt":                        true,
-		"net/http":                   true,
-		"github.com/gorilla/mux":     true,
-		"golang.org/x/crypto/bcrypt": true,
-	}
-
-	for _, imp := range imports {
-		if !want[imp] {
-			t.Errorf("unexpected import: %q", imp)
-		}
-		delete(want, imp)
-	}
-	for imp := range want {
-		t.Errorf("missing import: %q", imp)
-	}
-}
-
 func TestExtractPyImports(t *testing.T) {
 	content := []byte(`import os
 import sys
@@ -164,7 +123,8 @@ func TestPyPIToImportName(t *testing.T) {
 func TestExtractImportsWorkspace(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create Go file.
+	// Go files are deliberately not extracted: Go reachability is answered by
+	// call-graph analysis, not by import scanning.
 	goDir := filepath.Join(dir, "cmd")
 	if err := os.MkdirAll(goDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -200,8 +160,7 @@ const lodash = require('lodash');
 		name string
 		want bool
 	}{
-		{"Go", "github.com/example/pkg", true},
-		{"Go", "github.com/other/pkg", false},
+		{"Go", "github.com/example/pkg", false},
 		{"PyPI", "flask", true},
 		{"PyPI", "requests", true},
 		{"PyPI", "numpy", false},

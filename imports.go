@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,7 +50,13 @@ var skippedDirs = map[string]bool{
 	"obj":          true, // .NET
 }
 
-// ExtractImports walks root and extracts imports for Go, Python, and JS/TS files.
+// ExtractImports walks root and extracts imports for every ecosystem that is
+// classified by import scanning.
+//
+// Go is not among them. Go reachability is answered by call-graph analysis in
+// goreach.go, which asks whether the vulnerable symbol is called; parsing Go
+// import statements here would produce a weaker answer nothing consumes, at
+// the cost of parsing every .go file in the workspace.
 func ExtractImports(root string) (*ImportSet, error) {
 	imports := NewImportSet()
 
@@ -69,21 +73,13 @@ func ExtractImports(root string) (*ImportSet, error) {
 
 		ext := filepath.Ext(path)
 		switch ext {
-		case ".go":
-			pkgs, parseErr := extractGoImports(path)
-			if parseErr != nil {
-				return nil // skip unparseable files
-			}
-			for _, pkg := range pkgs {
-				imports.Add("Go", pkg)
-			}
 		case ".py":
 			content, readErr := os.ReadFile(path)
 			if readErr != nil {
 				return nil
 			}
 			for _, pkg := range extractPyImports(content) {
-				imports.Add("PyPI", pkg)
+				imports.Add(EcosystemPyPI, pkg)
 			}
 		case ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs":
 			content, readErr := os.ReadFile(path)
@@ -91,7 +87,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 				return nil
 			}
 			for _, pkg := range extractJSImports(content) {
-				imports.Add("npm", pkg)
+				imports.Add(EcosystemNPM, pkg)
 			}
 		case ".rs":
 			content, readErr := os.ReadFile(path)
@@ -99,7 +95,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 				return nil
 			}
 			for _, pkg := range extractRustUses(content) {
-				imports.Add("crates.io", pkg)
+				imports.Add(EcosystemCargo, pkg)
 			}
 		case ".java", ".kt":
 			content, readErr := os.ReadFile(path)
@@ -107,7 +103,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 				return nil
 			}
 			for _, pkg := range extractJavaImports(content) {
-				imports.Add("Maven", pkg)
+				imports.Add(EcosystemMaven, pkg)
 			}
 		case ".rb":
 			content, readErr := os.ReadFile(path)
@@ -115,7 +111,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 				return nil
 			}
 			for _, pkg := range extractRubyRequires(content) {
-				imports.Add("RubyGems", pkg)
+				imports.Add(EcosystemRubyGems, pkg)
 			}
 		case ".cs":
 			content, readErr := os.ReadFile(path)
@@ -123,32 +119,13 @@ func ExtractImports(root string) (*ImportSet, error) {
 				return nil
 			}
 			for _, pkg := range extractCSharpUsings(content) {
-				imports.Add("NuGet", pkg)
+				imports.Add(EcosystemNuGet, pkg)
 			}
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-	return imports, nil
-}
-
-// extractGoImports parses a Go source file and returns its import paths.
-func extractGoImports(path string) ([]string, error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-	if err != nil {
-		return nil, err
-	}
-
-	var imports []string
-	for _, imp := range f.Imports {
-		importPath := imp.Path.Value
-		importPath = strings.Trim(importPath, `"`)
-		if importPath != "" {
-			imports = append(imports, importPath)
-		}
 	}
 	return imports, nil
 }
