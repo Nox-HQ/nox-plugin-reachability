@@ -473,3 +473,49 @@ func testClient(t *testing.T) pluginv1.PluginServiceClient {
 
 	return pluginv1.NewPluginServiceClient(conn)
 }
+
+// A reachability verdict has no line of its own, so it is reported at the
+// manifest that declares the dependency — the location nox already gives the
+// VULN finding it annotates. A finding with no location is not merely
+// unhelpful: nox renders it into SARIF without an artifactLocation, GitHub
+// rejects the whole submission, and every other finding in the run is lost
+// with it.
+func TestVulnLocationIsCarriedToTheVerdict(t *testing.T) {
+	in := []*pluginv1.Finding{{
+		RuleId:      "VULN-001",
+		Fingerprint: "abc123",
+		Location:    &pluginv1.Location{FilePath: "go.mod", StartLine: 1},
+		Metadata: map[string]string{
+			"package": "golang.org/x/crypto", "ecosystem": "go", "vuln_id": "GO-2026-5932",
+		},
+	}}
+
+	got := extractVulnFindings(in)
+	if len(got) != 1 {
+		t.Fatalf("extracted %d vulns, want 1", len(got))
+	}
+	if got[0].File != "go.mod" || got[0].Line != 1 {
+		t.Errorf("location = %q:%d, want go.mod:1 — the verdict would be emitted with no artifactLocation",
+			got[0].File, got[0].Line)
+	}
+}
+
+// A VULN finding without a location must not invent one; the guard in the
+// emitter is what keeps At() from being called with an empty path.
+func TestMissingVulnLocationStaysEmpty(t *testing.T) {
+	in := []*pluginv1.Finding{{
+		RuleId:      "VULN-001",
+		Fingerprint: "def456",
+		Metadata: map[string]string{
+			"package": "example.com/x", "ecosystem": "go", "vuln_id": "GO-0000-0000",
+		},
+	}}
+
+	got := extractVulnFindings(in)
+	if len(got) != 1 {
+		t.Fatalf("extracted %d vulns, want 1", len(got))
+	}
+	if got[0].File != "" || got[0].Line != 0 {
+		t.Errorf("location = %q:%d, want empty", got[0].File, got[0].Line)
+	}
+}
