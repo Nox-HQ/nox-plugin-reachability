@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.3.1",
+  "id": "GO-9999-0001",
+  "modified": "2026-01-01T00:00:00Z",
+  "published": "2026-01-01T00:00:00Z",
+  "aliases": ["CVE-9999-0001", "GHSA-9999-pesc-ape0"],
+  "summary": "Synthetic test advisory for net/url.PathEscape",
+  "details": "Fixture advisory used by nox-plugin-reachability tests. Not a real vulnerability.",
+  "affected": [
+    {
+      "package": {"name": "stdlib", "ecosystem": "Go"},
+      "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}]}],
+      "ecosystem_specific": {
+        "imports": [{"path": "net/url", "symbols": ["PathEscape"]}]
+      }
+    }
+  ],
+  "database_specific": {"url": "https://pkg.go.dev/vuln/GO-9999-0001"}
+}
