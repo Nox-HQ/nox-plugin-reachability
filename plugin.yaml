@@ -1,7 +1,7 @@
 name: nox-plugin-reachability
 version: 0.1.0
 track: core-analysis
-description: Multi-language reachability analysis. Annotates VULN findings as REACH-001 (unreachable), REACH-002 (reachable), or REACH-003 (undetermined). Go is analysed at symbol level with golang.org/x/vuln (is the vulnerable symbol actually called); PyPI, npm, Cargo, Maven, RubyGems and NuGet by import scanning. Bundled by default in the nox release archive.
+description: Multi-language reachability analysis. Annotates VULN findings as REACH-001 (unreachable), REACH-002 (reachable), or REACH-003 (undetermined). Go is analysed at symbol level with golang.org/x/vuln (is the vulnerable symbol actually called); PyPI, npm, Cargo, Maven, RubyGems and NuGet by import scanning.
 tools:
   - name: analyze_reachability
     description: Classify VULN findings by reachability — call-graph analysis for Go, import analysis for other ecosystems
