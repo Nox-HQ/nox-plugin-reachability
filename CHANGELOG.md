@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-26
+
+### Added
+
+- **Symbol-level Go reachability** — Go advisories are now answered by
+  `golang.org/x/vuln` (the library behind `govulncheck`), used in-process
+  rather than by shelling out to a binary the operator may not have. The
+  verdict is whether the *vulnerable symbol* is called: `REACH-002` when the
+  call graph reaches it (with the call path attached as `call_path`),
+  `REACH-001` when the module is in the build graph but no vulnerable symbol
+  is called. Advisory ids are mapped through the aliases the scan reports, so
+  GHSA- and CVE-identified findings resolve to the GO ids the Go database
+  issues. Analysis is bounded by a timeout and degrades to `REACH-003` on
+  overrun.
+- **`method` and `reason` metadata** on every REACH finding and enrichment.
+  `method` distinguishes a call-graph verdict (`symbol`) from an import-text
+  one (`import`); `reason` states why the verdict was reached.
+
+### Fixed
+
+- **A verdict now reports where the dependency is declared.** A reachability
+  verdict is about the dependency graph, not a line of source, so it carried no
+  location at all. nox wrote that into SARIF as an empty
+  `artifactLocation.uri`, and GitHub rejects the whole submission for it — so
+  enabling this plugin in a repository that uploads to code scanning cost
+  *every* finding its upload, while the same scan looked clean locally.
+  Verdicts are now reported at the manifest that declares the module
+  (`go.mod:1`), which is valid SARIF and more useful besides: the alert lands
+  on the dependency declaration. nox also stops one location-less finding from
+  breaking the file (Nox-HQ/nox#370), but a verdict that has a sensible home
+  should say so itself.
+
+- **Every ecosystem except npm was silently unsupported.** nox tags VULN
+  findings with its own internal ecosystem names (`go`, `pypi`, `cargo`,
+  `maven`, `rubygems`, `nuget`) and only converts to OSV's spellings when it
+  queries OSV.dev. This plugin matched on OSV's spellings (`Go`, `PyPI`,
+  `crates.io`, …), so only `npm` — spelled identically in both — ever
+  resolved. Everything else fell through to `REACH-003 … unsupported
+  ecosystem go`, which reads like an analysis result but meant the analysis
+  never ran. Ecosystem labels are now canonicalised before dispatch.
+- **`REACH-003` no longer always blames the ecosystem.** The message carries
+  the actual reason: no `go.mod` at the target, the module could not be
+  loaded, the analysis exceeded its budget, or the advisory id could not be
+  mapped to the Go vulnerability database.
+
+### Changed
+
+- Go import extraction was removed. It parsed every `.go` file in a workspace
+  to answer a question nothing asks any more — module presence is not
+  reachability, and Go is now decided by the call graph.
+
 ## [0.7.0] - 2026-07-18
 
 ### Added
