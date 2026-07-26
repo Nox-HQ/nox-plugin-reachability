@@ -73,6 +73,13 @@ func handleAnalyzeReachability(ctx context.Context, req sdk.ToolRequest) (*plugi
 			WithMetadata("method", r.Method).
 			WithMetadata("reason", r.Reason).
 			WithFingerprint(fmt.Sprintf("%s:%s:%s", r.RuleID, r.Vuln.Package, r.Vuln.VulnID))
+		// Report the verdict where the dependency is declared. Without a
+		// location the SARIF result has no artifactLocation and GitHub
+		// rejects the entire upload, so every finding in the run is lost
+		// to one that had nowhere to point.
+		if r.Vuln.File != "" {
+			f = f.At(r.Vuln.File, r.Vuln.Line, r.Vuln.Line)
+		}
 		if r.Evidence != "" {
 			f = f.WithMetadata("call_path", r.Evidence)
 		}
@@ -193,15 +200,16 @@ func extractVulnFindings(findings []*pluginv1.Finding) []VulnInfo {
 			continue
 		}
 
+		loc := f.GetLocation()
+		file := ""
+		line := 0
+		if loc != nil {
+			file = loc.GetFilePath()
+			line = int(loc.GetStartLine())
+		}
+
 		fingerprint := f.GetFingerprint()
 		if fingerprint == "" {
-			loc := f.GetLocation()
-			file := ""
-			line := 0
-			if loc != nil {
-				file = loc.GetFilePath()
-				line = int(loc.GetStartLine())
-			}
 			fingerprint = fmt.Sprintf("%s:%s:%d", ruleID, file, line)
 		}
 
@@ -211,6 +219,8 @@ func extractVulnFindings(findings []*pluginv1.Finding) []VulnInfo {
 			Ecosystem:   ecosystem,
 			VulnID:      vulnID,
 			Aliases:     splitAliases(meta["aliases"]),
+			File:        file,
+			Line:        line,
 		})
 	}
 	return vulns

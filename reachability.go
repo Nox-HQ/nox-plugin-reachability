@@ -13,6 +13,16 @@ type VulnInfo struct {
 	// Go vulnerability database speaks GO ids — so the aliases are what makes
 	// a GHSA-identified finding resolvable at all.
 	Aliases []string
+	// File and Line locate the advisory in the source tree — the manifest
+	// that declares the dependency, which is where nox puts the VULN
+	// finding this one annotates. A reachability verdict has no line of
+	// its own, but a finding without any location is not merely
+	// unhelpful: nox renders it into SARIF with no artifactLocation, and
+	// GitHub rejects the whole submission, taking every other finding in
+	// the file with it. So the verdict is reported where the dependency
+	// is declared.
+	File string
+	Line int
 }
 
 // ReachStatus classifies the reachability of a vulnerable package.
