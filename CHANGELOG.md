@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-26
+
 ### Added
 
 - **Symbol-level Go reachability** — Go advisories are now answered by
@@ -24,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one (`import`); `reason` states why the verdict was reached.
 
 ### Fixed
+
+- **A verdict now reports where the dependency is declared.** A reachability
+  verdict is about the dependency graph, not a line of source, so it carried no
+  location at all. nox wrote that into SARIF as an empty
+  `artifactLocation.uri`, and GitHub rejects the whole submission for it — so
+  enabling this plugin in a repository that uploads to code scanning cost
+  *every* finding its upload, while the same scan looked clean locally.
+  Verdicts are now reported at the manifest that declares the module
+  (`go.mod:1`), which is valid SARIF and more useful besides: the alert lands
+  on the dependency declaration. nox also stops one location-less finding from
+  breaking the file (Nox-HQ/nox#370), but a verdict that has a sensible home
+  should say so itself.
 
 - **Every ecosystem except npm was silently unsupported.** nox tags VULN
   findings with its own internal ecosystem names (`go`, `pypi`, `cargo`,
