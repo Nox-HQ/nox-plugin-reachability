@@ -126,7 +126,15 @@ func messageFor(r *Result) string {
 		if r.Method == MethodSymbol {
 			return fmt.Sprintf("Vulnerable symbol in %s (%s) is never called — %s", r.Vuln.Package, r.Vuln.VulnID, r.Reason)
 		}
-		return fmt.Sprintf("Vulnerable package %s (%s) is NOT imported — likely false positive", r.Vuln.Package, r.Vuln.VulnID)
+		// Deliberately not "likely false positive". An import-text scan
+		// establishes that this workspace's own source does not name the
+		// package; it cannot see a package reached THROUGH a dependency, which
+		// is how vulnerable transitive packages are usually reached. Saying
+		// more than was observed is what turns a triage aid into permission to
+		// stop looking.
+		return fmt.Sprintf(
+			"Vulnerable package %s (%s) is not imported directly by this workspace's source — it may still be reached through a dependency",
+			r.Vuln.Package, r.Vuln.VulnID)
 	default:
 		return fmt.Sprintf("Cannot determine reachability for %s (%s) — %s", r.Vuln.Package, r.Vuln.VulnID, r.Reason)
 	}
@@ -146,7 +154,10 @@ func gradeFor(r *Result) (severity pluginv1.Severity, confidence pluginv1.Confid
 		if r.Method == MethodSymbol {
 			return sdk.SeverityInfo, sdk.ConfidenceHigh
 		}
-		return sdk.SeverityInfo, sdk.ConfidenceMedium
+		// Low, not medium. A completed import scan that found nothing is real
+		// evidence, but weak: it cannot observe transitive reach, so it should
+		// not carry the same weight as the call-graph proof above it.
+		return sdk.SeverityInfo, sdk.ConfidenceLow
 	default:
 		return sdk.SeverityLow, sdk.ConfidenceLow
 	}

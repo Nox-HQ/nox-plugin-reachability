@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Never refute from an empty search. A workspace with no source for an
+  ecosystem now yields REACH-003 (undetermined) rather than REACH-001 (not
+  imported) for every advisory in it. On a lockfile-only npm target carrying
+  116 advisories this changes 94 refutations to 0. (#44)
+- The import-scan refutation no longer claims "likely false positive". It says
+  what was observed — the package is not imported directly by this workspace's
+  source — and that it may still be reached through a dependency, which an
+  import scan cannot see. Its confidence drops from medium to low. (#44)
+
 ## [0.9.0] - 2026-07-26
 
 ### Added

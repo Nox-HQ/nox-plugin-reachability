@@ -11,19 +11,52 @@ import (
 // ImportSet tracks discovered imports grouped by ecosystem.
 type ImportSet struct {
 	byEcosystem map[string]map[string]bool // ecosystem -> set of import names
+	// searched records the ecosystems whose source was actually read.
+	//
+	// Without it, "this workspace imports nothing from PyPI" and "this
+	// workspace contains no Python at all" are the same empty map, and the
+	// second was being reported as the first. A lockfile-only target — a CI job
+	// that checks out a manifest, a repo whose source lives elsewhere — then
+	// produced a confident "not imported" for every advisory in it.
+	searched map[string]bool
 }
 
 // NewImportSet creates an empty ImportSet.
 func NewImportSet() *ImportSet {
-	return &ImportSet{byEcosystem: make(map[string]map[string]bool)}
+	return &ImportSet{
+		byEcosystem: make(map[string]map[string]bool),
+		searched:    make(map[string]bool),
+	}
 }
 
-// Add records an import for a given ecosystem.
+// Add records an import for a given ecosystem. It also marks the ecosystem as
+// searched: finding an import necessarily means source was read.
 func (s *ImportSet) Add(ecosystem, name string) {
 	if s.byEcosystem[ecosystem] == nil {
 		s.byEcosystem[ecosystem] = make(map[string]bool)
 	}
 	s.byEcosystem[ecosystem][name] = true
+	s.MarkSearched(ecosystem)
+}
+
+// MarkSearched records that source for this ecosystem was read, whether or not
+// it contained any imports. A file with no imports still answers the question
+// "was there anything to search?" — which is the question a negative result
+// depends on.
+func (s *ImportSet) MarkSearched(ecosystem string) {
+	if s.searched == nil {
+		s.searched = make(map[string]bool)
+	}
+	s.searched[ecosystem] = true
+}
+
+// Searched reports whether any source file for this ecosystem was read.
+//
+// A negative from Contains means something only when this is true. When it is
+// false the workspace held no source to look in, and the honest answer is that
+// reachability is undetermined — not that the package is unused.
+func (s *ImportSet) Searched(ecosystem string) bool {
+	return s.searched[ecosystem]
 }
 
 // Contains reports whether name is imported in the given ecosystem.
@@ -78,6 +111,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 			if readErr != nil {
 				return nil
 			}
+			imports.MarkSearched(EcosystemPyPI)
 			for _, pkg := range extractPyImports(content) {
 				imports.Add(EcosystemPyPI, pkg)
 			}
@@ -86,6 +120,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 			if readErr != nil {
 				return nil
 			}
+			imports.MarkSearched(EcosystemNPM)
 			for _, pkg := range extractJSImports(content) {
 				imports.Add(EcosystemNPM, pkg)
 			}
@@ -94,6 +129,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 			if readErr != nil {
 				return nil
 			}
+			imports.MarkSearched(EcosystemCargo)
 			for _, pkg := range extractRustUses(content) {
 				imports.Add(EcosystemCargo, pkg)
 			}
@@ -102,6 +138,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 			if readErr != nil {
 				return nil
 			}
+			imports.MarkSearched(EcosystemMaven)
 			for _, pkg := range extractJavaImports(content) {
 				imports.Add(EcosystemMaven, pkg)
 			}
@@ -110,6 +147,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 			if readErr != nil {
 				return nil
 			}
+			imports.MarkSearched(EcosystemRubyGems)
 			for _, pkg := range extractRubyRequires(content) {
 				imports.Add(EcosystemRubyGems, pkg)
 			}
@@ -118,6 +156,7 @@ func ExtractImports(root string) (*ImportSet, error) {
 			if readErr != nil {
 				return nil
 			}
+			imports.MarkSearched(EcosystemNuGet)
 			for _, pkg := range extractCSharpUsings(content) {
 				imports.Add(EcosystemNuGet, pkg)
 			}
