@@ -179,6 +179,18 @@ func goResult(v *VulnInfo, goReach goReachability) Result {
 }
 
 // importResult classifies a non-Go advisory by scanning import statements.
+//
+// The order of the cases carries the whole argument. A negative from the import
+// index means "not imported" only when there was source to look in; when there
+// was none, the same empty index means "nothing was searched", and reporting
+// that as unreachable turns an absence of evidence into evidence of absence.
+//
+// That distinction is not academic. On a target holding only a lockfile — a CI
+// job that checks out a manifest, a repo whose source lives elsewhere — every
+// advisory was previously labelled "NOT imported — likely false positive",
+// which reads as permission to stop looking. A missed detection costs a
+// finding; a manufactured refutation costs the finding and the analyst's
+// attention.
 func importResult(v *VulnInfo, imports *ImportSet) Result {
 	imported, supported := isImported(v.Package, v.Ecosystem, imports)
 
@@ -190,6 +202,10 @@ func importResult(v *VulnInfo, imports *ImportSet) Result {
 	case imported:
 		r.Status = ReachReachable
 		r.Reason = "the vulnerable package is imported by this workspace"
+	case !imports.Searched(CanonicalEcosystem(v.Ecosystem)):
+		r.Status = ReachUndetermined
+		r.Reason = "no " + v.Ecosystem + " source was found in this workspace, so " +
+			"whether the package is used could not be determined"
 	default:
 		r.Status = ReachUnreachable
 		r.Reason = "the vulnerable package is not imported by this workspace"
