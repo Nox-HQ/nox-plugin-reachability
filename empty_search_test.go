@@ -7,6 +7,11 @@ import (
 	"testing"
 )
 
+// A lockfile that records browserslist but that nothing in it depends on.
+const lockWithBrowserslist = `{"lockfileVersion":3,"packages":{
+ "":{"name":"x","dependencies":{"browserslist":"1"}},
+ "node_modules/browserslist":{"version":"1.0.0"}}}`
+
 // The three arms that exposed the defect, run over the same advisory.
 //
 // Arms 1 and 3 were previously indistinguishable in the output — both reported
@@ -15,7 +20,7 @@ import (
 // is the ordinary shape of a dependency scan: a CI job that checks out a
 // manifest, a repo whose source lives elsewhere, a container's dependency list.
 func TestNoRefutationWithoutASearch(t *testing.T) {
-	vuln := VulnInfo{Package: "browserslist", Ecosystem: "npm", VulnID: "GHSA-73wf-gq98-2v4g"}
+	vuln := VulnInfo{Package: "browserslist", Ecosystem: "npm", VulnID: "GHSA-73wf-gq98-2v4g", File: "package-lock.json"}
 
 	tests := []struct {
 		name       string
@@ -24,13 +29,13 @@ func TestNoRefutationWithoutASearch(t *testing.T) {
 	}{
 		{
 			name:       "no source at all: nothing was searched, so nothing is refuted",
-			files:      map[string]string{"package-lock.json": `{"name":"x"}`},
+			files:      map[string]string{"package-lock.json": lockWithBrowserslist},
 			wantStatus: ReachUndetermined,
 		},
 		{
 			name: "source imports the package: reachable",
 			files: map[string]string{
-				"package-lock.json": `{"name":"x"}`,
+				"package-lock.json": lockWithBrowserslist,
 				"index.js":          `const b = require('browserslist');`,
 			},
 			wantStatus: ReachReachable,
@@ -38,7 +43,7 @@ func TestNoRefutationWithoutASearch(t *testing.T) {
 		{
 			name: "source searched, package absent: a real refutation",
 			files: map[string]string{
-				"package-lock.json": `{"name":"x"}`,
+				"package-lock.json": lockWithBrowserslist,
 				"index.js":          `const q = require('some-other-package');`,
 			},
 			wantStatus: ReachUnreachable,
@@ -46,7 +51,7 @@ func TestNoRefutationWithoutASearch(t *testing.T) {
 		{
 			name: "source with no imports at all still counts as searched",
 			files: map[string]string{
-				"package-lock.json": `{"name":"x"}`,
+				"package-lock.json": lockWithBrowserslist,
 				"index.js":          `module.exports = 1;`,
 			},
 			wantStatus: ReachUnreachable,
@@ -66,7 +71,7 @@ func TestNoRefutationWithoutASearch(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ExtractImports: %v", err)
 			}
-			got := importResult(&vuln, imports)
+			got := importResult(&vuln, imports, newLockGraphs(dir))
 
 			if got.Status != tc.wantStatus {
 				t.Errorf("Status = %v, want %v (reason: %s)", got.Status, tc.wantStatus, got.Reason)
@@ -80,15 +85,17 @@ func TestNoRefutationWithoutASearch(t *testing.T) {
 // because an import scan cannot see a package reached through a dependency.
 func TestUnreachableMessageDoesNotOverstate(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "index.js"), []byte(`const q = require('elsewhere');`), 0o600); err != nil {
-		t.Fatal(err)
+	for name, body := range map[string]string{"index.js": `const q = require('elsewhere');`, "package-lock.json": lockWithBrowserslist} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	imports, err := ExtractImports(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	r := importResult(&VulnInfo{Package: "browserslist", Ecosystem: "npm", VulnID: "GHSA-x"}, imports)
+	r := importResult(&VulnInfo{Package: "browserslist", Ecosystem: "npm", VulnID: "GHSA-x", File: "package-lock.json"}, imports, newLockGraphs(dir))
 	if r.Status != ReachUnreachable {
 		t.Fatalf("Status = %v, want ReachUnreachable — the fixture no longer exercises the message", r.Status)
 	}
@@ -97,7 +104,7 @@ func TestUnreachableMessageDoesNotOverstate(t *testing.T) {
 	if strings.Contains(msg, "false positive") {
 		t.Errorf("message calls a completed import scan a false positive: %q", msg)
 	}
-	if !strings.Contains(msg, "through a dependency") {
+	if !strings.Contains(msg, "not reachable from any imported package") {
 		t.Errorf("message does not say what the scan could not see: %q", msg)
 	}
 }

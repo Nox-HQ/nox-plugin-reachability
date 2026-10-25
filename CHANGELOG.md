@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A package that is not imported directly but is loaded by a package that is
+  no longer reads as unreachable. The plugin now reads the lockfile beside the
+  file that declares the dependency (package-lock.json v1-v3, npm-shrinkwrap,
+  yarn.lock classic and berry, pnpm-lock.yaml v5-v9, Cargo.lock, Gemfile.lock,
+  poetry.lock), walks it from the imported packages, and reports
+  "pulled in by express (transitively loaded)" as REACH-002 with the chain as
+  evidence. On an Express app with pinned dependencies this changes 12
+  REACH-001 verdicts for qs, cookie, path-to-regexp, body-parser, send and
+  serve-static to REACH-002.
+- REACH-001 is now only concluded from a graph that was read and resolved
+  completely: a package no imported package leads to. Any other case (no
+  lockfile, unparseable lockfile, ecosystem without a graph reader such as
+  Maven or NuGet, package absent from the lockfile, dangling dependency
+  edges) yields REACH-003 with the reason, where it used to yield REACH-001.
+  A package the lockfile marks `dev: true` is labelled development-only, with
+  that evidence cited.
+
 - Never refute from an empty search. A workspace with no source for an
   ecosystem now yields REACH-003 (undetermined) rather than REACH-001 (not
   imported) for every advisory in it. On a lockfile-only npm target carrying

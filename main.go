@@ -58,7 +58,7 @@ func handleAnalyzeReachability(ctx context.Context, req sdk.ToolRequest) (*plugi
 	}
 
 	// Cross-reference vulns against imports.
-	results := Analyze(vulns, imports, goReach)
+	results := AnalyzeWithGraphs(vulns, imports, goReach, newLockGraphs(workspaceRoot))
 
 	// Emit findings and enrichments.
 	for i := range results {
@@ -121,10 +121,16 @@ func messageFor(r *Result) string {
 			}
 			return msg
 		}
+		if r.Method == MethodGraph {
+			return fmt.Sprintf("Vulnerable package %s (%s) is loaded by this workspace — %s", r.Vuln.Package, r.Vuln.VulnID, r.Reason)
+		}
 		return fmt.Sprintf("Vulnerable package %s (%s) IS imported — confirmed risk", r.Vuln.Package, r.Vuln.VulnID)
 	case ReachUnreachable:
 		if r.Method == MethodSymbol {
 			return fmt.Sprintf("Vulnerable symbol in %s (%s) is never called — %s", r.Vuln.Package, r.Vuln.VulnID, r.Reason)
+		}
+		if r.Method == MethodGraph {
+			return fmt.Sprintf("Vulnerable package %s (%s) is %s", r.Vuln.Package, r.Vuln.VulnID, r.Reason)
 		}
 		// Deliberately not "likely false positive". An import-text scan
 		// establishes that this workspace's own source does not name the
@@ -175,9 +181,9 @@ func reachableLabel(s ReachStatus) string {
 }
 
 func enrichmentBody(r *Result) string {
-	body := fmt.Sprintf("Package `%s` reachability: **%s** — %s", r.Vuln.Package, reachableLabel(r.Status), r.Reason)
+	body := fmt.Sprintf("Package %#q reachability: **%s** — %s", r.Vuln.Package, reachableLabel(r.Status), r.Reason)
 	if r.Evidence != "" {
-		body += fmt.Sprintf("\n\nCall path: `%s`", r.Evidence)
+		body += fmt.Sprintf("\n\nCall path: %#q", r.Evidence)
 	}
 	return body
 }
