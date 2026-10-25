@@ -15,7 +15,13 @@ advisory names is ever reached, and that distinction is the whole point of
 reachability analysis.
 
 **Every other ecosystem** is analysed by scanning import statements, which can
-only observe that a package name appears in source.
+only observe that a package name appears in source. A package the source does
+not name is then looked up in the lockfile's dependency graph (npm
+package-lock/yarn/pnpm, Cargo.lock, Gemfile.lock, poetry.lock), walked from the
+imported packages: one an imported package loads is reported REACH-002 as
+"pulled in by <package> (transitively loaded)" with the chain; only one that no
+imported package leads to is REACH-001. Without a usable graph the verdict is
+REACH-003, never REACH-001.
 
 ## Tools
 
@@ -25,8 +31,8 @@ only observe that a package name appears in source.
 
 | ID | Description | Severity |
 |----|-------------|----------|
-| REACH-001 | Not reachable — the vulnerable symbol is never called (Go), or the package is not imported | Info |
-| REACH-002 | Reachable — the vulnerable symbol is called (Go), or the package is imported | High |
+| REACH-001 | Not reachable — the vulnerable symbol is never called (Go), or no imported package leads to it in the lockfile graph | Info |
+| REACH-002 | Reachable — the vulnerable symbol is called (Go), or the package is imported or loaded by an imported package | High |
 | REACH-003 | No verdict could be established; the finding's `reason` says why | Low |
 
 `REACH-003` is not a synonym for "unsupported ecosystem". It is also what you
@@ -41,7 +47,7 @@ Each finding and enrichment carries:
 | Key | Meaning |
 |-----|---------|
 | `reachable` | `true`, `false`, or `undetermined` |
-| `method` | `symbol` (call-graph analysis) or `import` (import scanning) |
+| `method` | `symbol` (call-graph analysis), `import` (import scanning) or `lockfile-graph` (import scanning plus the lockfile dependency graph) |
 | `reason` | Why this verdict was reached |
 | `call_path` | For a reachable Go verdict: the path from this module's code to the vulnerable symbol |
 

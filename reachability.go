@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // VulnInfo holds the relevant fields from a VULN finding.
 type VulnInfo struct {
@@ -43,6 +46,10 @@ const (
 	// MethodImport is import-statement scanning: the verdict is about whether
 	// the vulnerable *package* is named in the workspace's source.
 	MethodImport = "import"
+	// MethodGraph is import scanning combined with the lockfile's dependency
+	// graph: the verdict is about whether the package is imported by the
+	// workspace or loaded by a package that is.
+	MethodGraph = "lockfile-graph"
 )
 
 // Result holds the reachability analysis outcome for a single VULN finding.
@@ -147,6 +154,13 @@ var supportedEcosystems = map[string]bool{
 // analysis was not available" and yields REACH-003 rather than a verdict
 // derived from import text — module presence is not reachability.
 func Analyze(vulns []VulnInfo, imports *ImportSet, goReach goReachability) []Result {
+	return AnalyzeWithGraphs(vulns, imports, goReach, nil)
+}
+
+// AnalyzeWithGraphs is Analyze with a source of lockfile dependency graphs.
+// Without one, a package that is not imported directly is undetermined, never
+// unreachable: "unreachable" is only concluded from a graph that was read.
+func AnalyzeWithGraphs(vulns []VulnInfo, imports *ImportSet, goReach goReachability, graphs GraphSource) []Result {
 	results := make([]Result, 0, len(vulns))
 
 	for i := range vulns {
@@ -155,7 +169,7 @@ func Analyze(vulns []VulnInfo, imports *ImportSet, goReach goReachability) []Res
 			results = append(results, goResult(v, goReach))
 			continue
 		}
-		results = append(results, importResult(v, imports))
+		results = append(results, importResult(v, imports, graphs))
 	}
 
 	return results
@@ -191,7 +205,7 @@ func goResult(v *VulnInfo, goReach goReachability) Result {
 // which reads as permission to stop looking. A missed detection costs a
 // finding; a manufactured refutation costs the finding and the analyst's
 // attention.
-func importResult(v *VulnInfo, imports *ImportSet) Result {
+func importResult(v *VulnInfo, imports *ImportSet, graphs GraphSource) Result {
 	imported, supported := isImported(v.Package, v.Ecosystem, imports)
 
 	r := Result{Vuln: *v, Method: MethodImport}
@@ -201,17 +215,64 @@ func importResult(v *VulnInfo, imports *ImportSet) Result {
 		r.Reason = "unsupported ecosystem " + v.Ecosystem
 	case imported:
 		r.Status = ReachReachable
-		r.Reason = "the vulnerable package is imported by this workspace"
+		r.Reason = "imported directly by this workspace"
 	case !imports.Searched(CanonicalEcosystem(v.Ecosystem)):
 		r.Status = ReachUndetermined
 		r.Reason = "no " + v.Ecosystem + " source was found in this workspace, so " +
 			"whether the package is used could not be determined"
 	default:
-		r.Status = ReachUnreachable
-		r.Reason = "the vulnerable package is not imported by this workspace"
+		graphResultFor(&r, v, imports, graphs)
 	}
 	r.RuleID = ruleIDFor(r.Status)
 	return r
+}
+
+// graphResultFor decides a package the workspace does not import directly.
+//
+// Not being named in source says nothing about not being loaded: a package is
+// usually executed because a package that IS named depends on it. So the
+// lockfile's graph is walked from the imported set, and only a package that no
+// imported package leads to, in a graph that resolved completely, is called
+// unreachable. Every other outcome is either reachable (with the chain that
+// shows how) or undetermined (with the reason a graph could not settle it).
+// The reassuring answer is never the default.
+func graphResultFor(r *Result, v *VulnInfo, imports *ImportSet, graphs GraphSource) {
+	eco := CanonicalEcosystem(v.Ecosystem)
+	r.Method = MethodGraph
+	r.Status = ReachUndetermined
+	prefix := "not imported directly by this workspace, and "
+
+	if graphs == nil {
+		r.Reason = prefix + "no dependency graph is available, so whether a dependency loads it could not be determined"
+		return
+	}
+	g, why := graphs.GraphFor(v)
+	if g == nil {
+		r.Reason = prefix + why + ", so whether a dependency loads it could not be determined"
+		return
+	}
+
+	isRoot := func(name string) bool { return imports.Contains(eco, normalizePackageName(name, eco)) }
+	t := g.Trace(v.Package, isRoot)
+	switch t.Kind {
+	case TraceDirect:
+		r.Status = ReachReachable
+		r.Reason = "imported directly by this workspace"
+	case TraceTransitive:
+		r.Status = ReachReachable
+		r.Evidence = strings.Join(t.Chain, " -> ")
+		r.Reason = fmt.Sprintf("pulled in by %s (transitively loaded): %s (%s)", t.Chain[0], r.Evidence, g.Source)
+	case TraceUnreached:
+		r.Status = ReachUnreachable
+		r.Reason = "not imported by this workspace and not reachable from any imported package in " + g.Source
+		if t.DevOnly {
+			r.Reason = "development-only dependency (" + g.Source + " marks it dev: true), " + r.Reason
+		}
+	case TraceIncomplete:
+		r.Reason = fmt.Sprintf("%snot found beneath any imported package, but %s has %d dependency edge(s) that could not be resolved, so absence cannot be concluded", prefix, g.Source, t.Unresolved)
+	default:
+		r.Reason = prefix + "it is not recorded in " + g.Source + ", so how it is loaded could not be determined"
+	}
 }
 
 func ruleIDFor(s ReachStatus) string {

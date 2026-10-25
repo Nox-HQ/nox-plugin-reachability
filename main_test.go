@@ -233,7 +233,7 @@ func TestAnalyzeReachabilityMultipleFindings(t *testing.T) {
 		t.Fatalf("InvokeTool: %v", err)
 	}
 
-	// Should produce 3 findings: REACH-001 (cargo, not imported), REACH-001 (npm, not imported), REACH-001 (rubygems, not imported).
+	// Should produce 3 findings: REACH-003 (no lockfile graph) for each.
 	if len(resp.GetFindings()) != 3 {
 		t.Fatalf("expected 3 findings, got %d", len(resp.GetFindings()))
 	}
@@ -299,9 +299,10 @@ func TestAnalyzeFunction(t *testing.T) {
 		t.Errorf("results[0].Evidence = %q, want the resolver's call path", results[0].Evidence)
 	}
 
-	// PyPI package "requests" not imported → REACH-001.
-	if results[1].RuleID != "REACH-001" {
-		t.Errorf("results[1].RuleID = %q, want REACH-001", results[1].RuleID)
+	// PyPI package "requests" not imported and no dependency graph was
+	// supplied: undetermined, never a refutation.
+	if results[1].RuleID != "REACH-003" {
+		t.Errorf("results[1].RuleID = %q, want REACH-003", results[1].RuleID)
 	}
 
 	// npm "express" is imported → REACH-002.
