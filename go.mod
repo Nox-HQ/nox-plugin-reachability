@@ -3,7 +3,7 @@ module github.com/nox-hq/nox-plugin-reachability
 go 1.26.5
 
 require (
-	github.com/nox-hq/nox v1.55.11
+	github.com/nox-hq/nox v1.62.0
 	golang.org/x/vuln v1.9.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
