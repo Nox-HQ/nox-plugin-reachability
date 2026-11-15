@@ -1,5 +1,7 @@
 # nox-plugin-reachability
 
+[![nox security grade](.github/nox-badge.svg)](https://github.com/nox-hq/nox)
+
 Reachability analysis plugin for [Nox](https://github.com/nox-hq/nox).
 
 ## Overview
