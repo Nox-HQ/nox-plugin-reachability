@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-16
+
 ### Fixed
 
 - Go modules written for Go 1.27 are analysed again. The plugin links
@@ -16,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with Go 1.27.4, and when a module still needs a newer Go than the plugin was
   built with, the verdict says so and names the fix (update the plugin)
   instead of an undetermined reason buried in loader output.
+
+## [0.10.0] - 2026-10-25
+
+### Fixed
+
 - A package that is not imported directly but is loaded by a package that is
   no longer reads as unreachable. The plugin now reads the lockfile beside the
   file that declares the dependency (package-lock.json v1-v3, npm-shrinkwrap,
