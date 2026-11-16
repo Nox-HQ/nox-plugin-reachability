@@ -450,6 +450,11 @@ func (a goAnalyzer) scanModule(ctx context.Context, dir string, into *goScanResu
 		return fmt.Errorf("cannot determine Go reachability: the analysis could not start for %s: %v", relOrAbs(a.root, dir), err)
 	}
 	if err := cmd.Wait(); err != nil && !isVulnerabilitiesFound(err) {
+		// govulncheck returns the package-loading diagnostics in the error
+		// itself, not on stderr, so both are searched.
+		if reason, ok := newerGoReason(relOrAbs(a.root, dir), err.Error()+"\n"+stderr.String()); ok {
+			return errors.New(reason)
+		}
 		return fmt.Errorf("cannot determine Go reachability: the analysis failed for %s: %v%s", relOrAbs(a.root, dir), err, stderrHint(stderr.String()))
 	}
 
@@ -473,6 +478,25 @@ func (a goAnalyzer) environ() []string {
 func isVulnerabilitiesFound(err error) bool {
 	var coded interface{ ExitCode() int }
 	return errors.As(err, &coded) && coded.ExitCode() == 3
+}
+
+// newerGoPattern matches go/packages' report that a package needs a newer Go
+// than the one this binary's source-processing packages were built with:
+// "package requires newer Go version go1.27 (application built with go1.26)".
+var newerGoPattern = regexp.MustCompile(`requires newer Go version (go[0-9][0-9.]*) \(application built with (go[0-9][0-9.]*)\)`)
+
+// newerGoReason recognises the one load failure the operator cannot fix in
+// their own repository: x/vuln is linked into this plugin, so it parses source
+// with the Go this plugin was built with, and a module written for a newer Go
+// cannot be loaded until the plugin is rebuilt. Without this the failure reads
+// as a generic undetermined verdict buried in stderr, and every Go advisory in
+// an up-to-date module silently loses reachability.
+func newerGoReason(module, diagnostics string) (string, bool) {
+	m := newerGoPattern.FindStringSubmatch(diagnostics)
+	if m == nil {
+		return "", false
+	}
+	return fmt.Sprintf("cannot determine Go reachability: the Go module at %s needs %s, but this reachability plugin was built with %s and cannot load it; update the plugin to a release built with %s or later", module, m[1], m[2], m[1]), true
 }
 
 // stderrHint appends a bounded excerpt of govulncheck's diagnostics. The

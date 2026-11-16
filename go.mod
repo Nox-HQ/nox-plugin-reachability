@@ -1,6 +1,6 @@
 module github.com/nox-hq/nox-plugin-reachability
 
-go 1.26.5
+go 1.27.4
 
 require (
 	github.com/nox-hq/nox v1.62.0
