@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Go modules written for Go 1.27 are analysed again. The plugin links
+  golang.org/x/vuln, so it parses source with the Go it was built with, and
+  every Go advisory in a module for a newer Go came back undetermined (#52;
+  v0.10.0 fixed this for Go 1.26 only by being built with it). It is now built
+  with Go 1.27.4, and when a module still needs a newer Go than the plugin was
+  built with, the verdict says so and names the fix (update the plugin)
+  instead of an undetermined reason buried in loader output.
 - A package that is not imported directly but is loaded by a package that is
   no longer reads as unreachable. The plugin now reads the lockfile beside the
   file that declares the dependency (package-lock.json v1-v3, npm-shrinkwrap,
